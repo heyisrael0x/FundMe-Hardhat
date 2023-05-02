@@ -1,0 +1,41 @@
+{
+  "language": "Solidity",
+  "sources": {
+    "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol": {
+      "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.0;\n\ninterface AggregatorV3Interface {\n  function decimals() external view returns (uint8);\n\n  function description() external view returns (string memory);\n\n  function version() external view returns (uint256);\n\n  function getRoundData(uint80 _roundId)\n    external\n    view\n    returns (\n      uint80 roundId,\n      int256 answer,\n      uint256 startedAt,\n      uint256 updatedAt,\n      uint80 answeredInRound\n    );\n\n  function latestRoundData()\n    external\n    view\n    returns (\n      uint80 roundId,\n      int256 answer,\n      uint256 startedAt,\n      uint256 updatedAt,\n      uint80 answeredInRound\n    );\n}\n"
+    },
+    "contracts/FundMe.sol": {
+      "content": "// Get funds from user\r\n// Withdraw funds\r\n// Set a minimum funding value in USD\r\n\r\n// SPDX-License-Identifier: MIT\r\npragma solidity ^0.8.8;\r\n\r\nimport \"@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol\";\r\nimport \"./PriceConverter.sol\";\r\n\r\n// /**\r\n//  * @title A contract for crowd funding\r\n//  * @author oluwagbogo\r\n//  * @notice this contract is a decentralized funds payment\r\n//  */\r\nerror FundMe__NotOwner();\r\n\r\ncontract FundMe {\r\n    //Type Decleractions\r\n    using priceConverter for uint256;\r\n\r\n    //state variable\r\n    // uint256 public number;\r\n    uint256 public MINIMUM_USD = 50 * 1e18;\r\n    address[] public funders;\r\n    mapping(address => uint) addressToAmountFunded;\r\n    address public owner;\r\n    AggregatorV3Interface public s_priceFeed;\r\n\r\n    // Modifiers\r\n    modifier onlyOwner() {\r\n    // require(msg.sender == owner, \"sender is not owner!\");\r\n    if (msg.sender != owner) {\r\n        revert FundMe__NotOwner();\r\n    }\r\n    _;\r\n    }\r\n    constructor(address priceFeedAddress) {\r\n        s_priceFeed = AggregatorV3Interface(priceFeedAddress);\r\n        owner = msg.sender;\r\n    }\r\n\r\n    function fund() public payable {\r\n        // we wan to be able to set a minimum fund amount in USD\r\n        // 1. how do we send eth to this contract\r\n        // number = 5;\r\n        // require(getConversionRate(msg.value) >= minimumUsd, \"Don't send enough\"); // 1e18 == 1*10**18 == 1000000000000000000\r\n        require(msg.value.getConversionRate(s_priceFeed) >= MINIMUM_USD, \"Don't send enough\"); // 1e18 == 1*10**18 == 1000000000000000000\r\n        // 18 decimals\r\n        funders.push(msg.sender);\r\n        addressToAmountFunded[msg.sender] += msg.value;\r\n    }\r\n\r\n    function withdraw() public onlyOwner {\r\n        for (\r\n            uint256 funderIndex = 0;\r\n            funderIndex < funders.length;\r\n            funderIndex++\r\n        ) {\r\n            address funder = funders[funderIndex];\r\n            addressToAmountFunded[funder] = 0;\r\n        }\r\n        // resting an array\r\n        funders = new address[](0);\r\n        // actually withdraw the funds\r\n\r\n        // //transfer\r\n        // payable(msg.sender).transfer(address(this).balance);\r\n        // //send\r\n        // bool sendSuccess = payable(msg.sender).send(address(this).balance);\r\n        // require(sendSuccess, 'Send failed');\r\n        // //call\r\n        (bool callSucess, ) = payable(msg.sender).call{\r\n            value: address(this).balance\r\n        }(\"\");\r\n        require(callSucess, \"call failed\");\r\n    }\r\n\r\n\r\n    receive() external payable {\r\n        fund();\r\n    }\r\n\r\n    fallback() external payable {\r\n        fund();\r\n    }\r\n}\r\n"
+    },
+    "contracts/PriceConverter.sol": {
+      "content": " // SPDX-License-Identifier: MIT\r\n\r\npragma solidity ^0.8.0;\r\n\r\nimport \"@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol\";\r\n\r\nlibrary priceConverter {\r\n\r\n    function getPrice(AggregatorV3Interface priceFeed) internal view returns(uint256){\r\n        // ABI\r\n        // Address\r\n        (, int256 answer, , , ) = priceFeed.latestRoundData();\r\n        // ETH in terms of USD\r\n        // 1500.00000000\r\n        return uint256(answer * 1e10); // 1**10 = 1000000000\r\n    }\r\n\r\n    // function getVersion() internal view returns (uint256) {\r\n    //     AggregatorV3Interface priceFeed = AggregatorV3Interface( 0xD4a33860578De61DBAbDc8BFdb98FD742fA7028e );\r\n    //     return priceFeed.version();\r\n    // }\r\n\r\n    function getConversionRate(uint256 ethAmount, AggregatorV3Interface priceFeed) internal view returns(uint256){\r\n        uint256 ethPrice = getPrice(priceFeed);\r\n        // from getPrice() 1500_000000000000000000 = ETH/USD Price\r\n        // from value 1_000000000000000000 = number of ETH the user is sending\r\n        uint256 ethAmountInUsd = (ethPrice * ethAmount)/ 1e18;\r\n        return ethAmountInUsd;\r\n    }\r\n}"
+    }
+  },
+  "settings": {
+    "optimizer": {
+      "enabled": false,
+      "runs": 200
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi",
+          "evm.bytecode",
+          "evm.deployedBytecode",
+          "evm.methodIdentifiers",
+          "metadata",
+          "devdoc",
+          "userdoc",
+          "storageLayout",
+          "evm.gasEstimates"
+        ],
+        "": [
+          "ast"
+        ]
+      }
+    },
+    "metadata": {
+      "useLiteralContent": true
+    }
+  }
+}
